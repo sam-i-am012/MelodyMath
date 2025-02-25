@@ -41,8 +41,10 @@ void app_main(void) {
     // Flush UART buffer before writing
     uart_flush(UART_NUM);
 
+    send_command(0x80); // Move cursor to the start of the first line
+
     // Write first line
-    const char *message = "Testing Line 1";
+    const char *message = "Hiiii ";
     uart_write_bytes(UART_NUM, message, strlen(message));
 
     // Move cursor to second line
@@ -50,6 +52,6 @@ void app_main(void) {
     vTaskDelay(pdMS_TO_TICKS(100)); // Short delay
 
     // Write second line
-    const char *message2 = "Testing Line 2";
+    const char *message2 = "tehe";
     uart_write_bytes(UART_NUM, message2, strlen(message2));
 }

@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "melodyMath",
-    "project_version":    "1",
+    "project_version":    "0e17c7a-dirty",
     "project_path":       "/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath",
     "idf_path":           "/Users/samanthamau/esp/esp-idf",
     "build_dir":          "/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build",
@@ -685,7 +685,7 @@
             "managed_reqs": [],
             "managed_priv_reqs": [ "espressif__led_strip" ],
             "file": "/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/main/libmain.a",
-            "sources": [ "/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/main/blink_example_main.c" ],
+            "sources": [ "/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/main/melody_math.c" ],
             "include_dirs": [ "." ]
         },
         "mbedtls": {
