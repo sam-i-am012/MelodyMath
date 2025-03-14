@@ -5,7 +5,7 @@
     "idf.openOcdConfigs": [
         "board/esp32c6-builtin.cfg"
     ],
-    "idf.port": "/dev/tty.usbserial-10",
+    "idf.port": "/dev/tty.usbserial-110",
     "idf.toolsPath": "/Users/samanthamau/.espressif",
     "idf.flashType": "UART",
     "idf.customExtraVars": {
