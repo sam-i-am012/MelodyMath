@@ -13,6 +13,9 @@
 #define BAUD_RATE 9600       
 
 #define button1 18  // button1 -> GPIO18
+#define button2 19  // button2 -> GPIO19
+#define button3 20  // button3 -> GPIO20
+
 
 
 void send_command(uint8_t command) {
@@ -50,6 +53,12 @@ void init_lcd() {
 void init_button() {
     gpio_set_direction(button1, GPIO_MODE_INPUT);
     gpio_set_pull_mode(button1, GPIO_PULLUP_ONLY); 
+
+    gpio_set_direction(button2, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(button2, GPIO_PULLUP_ONLY); 
+
+    gpio_set_direction(button3, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(button3, GPIO_PULLUP_ONLY); 
 }
 
 void button_task(void *pvParameter) {
@@ -61,6 +70,22 @@ void button_task(void *pvParameter) {
 
             vTaskDelay(pdMS_TO_TICKS(500)); // small delay 
             while (gpio_get_level(button1) == 0); // wait until release 
+            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+        } else if (gpio_get_level(button2) == 0) { // since it's active low 
+            send_command(0xC0); // second line 
+            char message[] = "button 2";
+            uart_write_bytes(UART_NUM, message, strlen(message));
+
+            vTaskDelay(pdMS_TO_TICKS(500)); // small delay 
+            while (gpio_get_level(button2) == 0); // wait until release 
+            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+        } else if (gpio_get_level(button3) == 0) { // since it's active low 
+            send_command(0xC0); // second line 
+            char message[] = "button 3";
+            uart_write_bytes(UART_NUM, message, strlen(message));
+
+            vTaskDelay(pdMS_TO_TICKS(500)); // small delay 
+            while (gpio_get_level(button3) == 0); // wait until release 
             vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
         }
         vTaskDelay(pdMS_TO_TICKS(10)); // check every 10ms
