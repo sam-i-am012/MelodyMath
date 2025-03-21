@@ -1,3 +1,7 @@
 .DS_Store
-.devcontainer
-.vscode
+.devcontainer/
+.vscode/
+build_log.txt
+sdkconfig
+sdkconfig.*
+build/
