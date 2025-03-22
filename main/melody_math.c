@@ -18,7 +18,7 @@
 #define button4 21  // button3 -> GPIO20
 
 int correct_answer = 0; 
-int answer_choices[3]; // four answer choices 
+int answer_choices[4]; // four answer choices 
 
 void send_command(uint8_t command) {
     uint8_t cmd[] = {0xFE, command}; // 0xFE is command prefix for SerLCD
@@ -68,8 +68,9 @@ void generate_answer_choices(void) {
     // randomly generate 3 unique incorrect answers 
     answer_choices[0] = correct_answer; 
     for (int i = 1; i < 4; i++) {
-        int duplicate = 0; // a duplicate flag to check if this choice is already present 
+        int duplicate; // a duplicate flag to check if this choice is already present 
         do {
+            duplicate = 0; 
             answer_choices[i] = (rand() % 20) + 1; // generate rand num between 1 and 20 
 
             for (int j = 0; j < i; j++) { // loop through prev entries to check if this choice already exists 
@@ -92,13 +93,13 @@ void generate_answer_choices(void) {
 
     // display the answer choices on the second line 
     char answers_display[16]; 
-    sprintf(answers_display, "%d   %d   %d   %d", answer_choices[0],  answer_choices[1],  answer_choices[2],  answer_choices[3]); 
+    sprintf(answers_display, "%d  %d   %d   %d", answer_choices[0],  answer_choices[1],  answer_choices[2],  answer_choices[3]); 
     send_command(0xC0); 
     uart_write_bytes(UART_NUM, answers_display, strlen(answers_display)); 
+    vTaskDelay(pdMS_TO_TICKS(100)); // small delay
 }
 
 void generate_random_equation(void) {
-    srand(time(NULL)); // seed random number generator
 
     int num1 = 0; 
     int num2 = 0; 
@@ -129,6 +130,7 @@ void generate_random_equation(void) {
     send_command(0x80); // move cursor to the start of the first line
     // print on LCD 
     uart_write_bytes(UART_NUM, equation, strlen(equation));
+    vTaskDelay(pdMS_TO_TICKS(100)); // small delay
 }
 
 void check_answer(int button_index) {
@@ -138,12 +140,14 @@ void check_answer(int button_index) {
         send_command(0x80); 
         char msg[] = "Correct!"; 
         uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+        vTaskDelay(pdMS_TO_TICKS(100)); // small delay
     } else {
         send_command(0x01); // clear screen 
         vTaskDelay(pdMS_TO_TICKS(100));
         send_command(0x80); 
         char msg[] = "Wrong :("; 
         uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+        vTaskDelay(pdMS_TO_TICKS(100)); // small delay
     }
     
 
@@ -180,28 +184,9 @@ void app_main(void) {
     init_lcd(); 
     init_button(); 
 
-
+    srand(time(NULL)); // seed random number generator
     generate_random_equation();
     generate_answer_choices(); 
 
     xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
-
-    // vTaskDelay(pdMS_TO_TICKS(3000)); // update every 3 seconds
-
-    // 
-
-    // while(1) {
-    //     if (gpio_get_level(button1) == 0) { // since it's active low 
-    //         int answer = generate_random_equation();
-    //         // vTaskDelay(pdMS_TO_TICKS(3000)); // update every 3 seconds
-    
-    //         char answerChoices[16]; 
-    //         sprintf(answerChoices, "%d", answer); 
-    //         send_command(0xC0); 
-    //         uart_write_bytes(UART_NUM, answerChoices, strlen(answerChoices)); 
-    //         while (gpio_get_level(button1) == 0); // wait until release 
-    //         vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
-    //     }
-    // }
-    
 }
