@@ -15,6 +15,7 @@
 #define button1 18  // button1 -> GPIO18
 #define button2 19  // button2 -> GPIO19
 #define button3 20  // button3 -> GPIO20
+#define button4 21  // button3 -> GPIO20
 
 int correct_answer = 0; 
 int answer_choices[3]; // four answer choices 
@@ -58,37 +59,9 @@ void init_button() {
 
     gpio_set_direction(button3, GPIO_MODE_INPUT);
     gpio_set_pull_mode(button3, GPIO_PULLUP_ONLY); 
-}
 
-void button_task(void *pvParameter) {
-    while (1) {
-        if (gpio_get_level(button1) == 0) { // since it's active low 
-            send_command(0xC0); // second line 
-            char message[] = "button 1";
-            uart_write_bytes(UART_NUM, message, strlen(message));
-
-            vTaskDelay(pdMS_TO_TICKS(500)); // small delay 
-            while (gpio_get_level(button1) == 0); // wait until release 
-            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
-        } else if (gpio_get_level(button2) == 0) { // since it's active low 
-            send_command(0xC0); // second line 
-            char message[] = "button 2";
-            uart_write_bytes(UART_NUM, message, strlen(message));
-
-            vTaskDelay(pdMS_TO_TICKS(500)); // small delay 
-            while (gpio_get_level(button2) == 0); // wait until release 
-            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
-        } else if (gpio_get_level(button3) == 0) { // since it's active low 
-            send_command(0xC0); // second line 
-            char message[] = "button 3";
-            uart_write_bytes(UART_NUM, message, strlen(message));
-
-            vTaskDelay(pdMS_TO_TICKS(500)); // small delay 
-            while (gpio_get_level(button3) == 0); // wait until release 
-            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
-        } 
-        vTaskDelay(pdMS_TO_TICKS(10)); // check every 10ms
-    }
+    gpio_set_direction(button4, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(button4, GPIO_PULLUP_ONLY); 
 }
 
 void generate_answer_choices(void) {
@@ -124,7 +97,7 @@ void generate_answer_choices(void) {
     uart_write_bytes(UART_NUM, answers_display, strlen(answers_display)); 
 }
 
-void random_equation_generator(void) {
+void generate_random_equation(void) {
     srand(time(NULL)); // seed random number generator
 
     int num1 = 0; 
@@ -157,22 +130,69 @@ void random_equation_generator(void) {
     // print on LCD 
     uart_write_bytes(UART_NUM, equation, strlen(equation));
 }
-)
+
+void check_answer(int button_index) {
+    if(answer_choices[button_index] == correct_answer) {
+        send_command(0x01); // clear screen 
+        vTaskDelay(pdMS_TO_TICKS(100));
+        send_command(0x80); 
+        char msg[] = "Correct!"; 
+        uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+    } else {
+        send_command(0x01); // clear screen 
+        vTaskDelay(pdMS_TO_TICKS(100));
+        send_command(0x80); 
+        char msg[] = "Wrong :("; 
+        uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+    }
+    
+
+    vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
+    generate_random_equation(); 
+    generate_answer_choices(); 
+}
+
+void button_task(void *pvParameter) {
+    while (1) {
+        if (gpio_get_level(button1) == 0) { // since it's active low 
+            check_answer(0); 
+            // while (gpio_get_level(button1) == 0); // wait until release 
+            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+        } else if (gpio_get_level(button2) == 0) { // since it's active low 
+            check_answer(1); 
+            // while (gpio_get_level(button1) == 0); // wait until release 
+            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+        } else if (gpio_get_level(button3) == 0) { // since it's active low 
+            check_answer(2); 
+            // while (gpio_get_level(button1) == 0); // wait until release 
+            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+        } else if (gpio_get_level(button4) == 0) { // since it's active low 
+            check_answer(3); 
+            // while (gpio_get_level(button1) == 0); // wait until release 
+            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+        } 
+        vTaskDelay(pdMS_TO_TICKS(10)); // check every 10ms
+    }
+}
+
+
 void app_main(void) {
     init_lcd(); 
     init_button(); 
 
-    // xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
 
-    random_equation_generator();
+    generate_random_equation();
     generate_answer_choices(); 
+
+    xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
+
     // vTaskDelay(pdMS_TO_TICKS(3000)); // update every 3 seconds
 
     // 
 
     // while(1) {
     //     if (gpio_get_level(button1) == 0) { // since it's active low 
-    //         int answer = random_equation_generator();
+    //         int answer = generate_random_equation();
     //         // vTaskDelay(pdMS_TO_TICKS(3000)); // update every 3 seconds
     
     //         char answerChoices[16]; 
