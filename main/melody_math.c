@@ -19,6 +19,7 @@
 
 int correct_answer = 0; 
 int answer_choices[4]; // four answer choices 
+int equation_count = 0; // to track how many equations have been played 
 
 void send_command(uint8_t command) {
     uint8_t cmd[] = {0xFE, command}; // 0xFE is command prefix for SerLCD
@@ -100,6 +101,7 @@ void generate_answer_choices(void) {
 }
 
 void generate_random_equation(void) {
+    equation_count++; 
 
     int num1 = 0; 
     int num2 = 0; 
@@ -149,9 +151,20 @@ void check_answer(int button_index) {
         uart_write_bytes(UART_NUM, msg, strlen(msg)); 
         vTaskDelay(pdMS_TO_TICKS(100)); // small delay
     }
+    vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
+
+
+    if (equation_count == 3) {
+        equation_count = 0; // reset for next cycle 
+        vTaskDelay(pdMS_TO_TICKS(100)); // small delay
+        send_command(0x01); // clear screen 
+        send_command(0x80); // first line 
+        char msg[] = "music mode";
+        uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+        vTaskDelay(pdMS_TO_TICKS(2000)); // show message for 2 seconds 
+    }
     
 
-    vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
     generate_random_equation(); 
     generate_answer_choices(); 
 }
