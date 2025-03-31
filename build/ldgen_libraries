@@ -1,7 +1,4 @@
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/riscv/libriscv.a
-/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_driver_gpio/libesp_driver_gpio.a
-/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_timer/libesp_timer.a
-/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_pm/libesp_pm.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/mbedtls/libmbedtls.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_app_format/libesp_app_format.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_bootloader_format/libesp_bootloader_format.a
@@ -10,7 +7,9 @@
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/efuse/libefuse.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/bootloader_support/libbootloader_support.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_mm/libesp_mm.a
+/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_driver_gpio/libesp_driver_gpio.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/spi_flash/libspi_flash.a
+/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_timer/libesp_timer.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_system/libesp_system.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_common/libesp_common.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_rom/libesp_rom.a
@@ -24,6 +23,7 @@
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/newlib/libnewlib.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/pthread/libpthread.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/cxx/libcxx.a
+/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_pm/libesp_pm.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_ringbuf/libesp_ringbuf.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_driver_pcnt/libesp_driver_pcnt.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_driver_gptimer/libesp_driver_gptimer.a
@@ -42,5 +42,6 @@
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_driver_parlio/libesp_driver_parlio.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_driver_usb_serial_jtag/libesp_driver_usb_serial_jtag.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/driver/libdriver.a
+/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/VL53L0X/libVL53L0X.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/espressif__led_strip/libespressif__led_strip.a
 /Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/main/libmain.a

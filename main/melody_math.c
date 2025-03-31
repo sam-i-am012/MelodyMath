@@ -6,6 +6,8 @@
 #include "freertos/task.h"
 #include "string.h"
 #include "driver/gpio.h"
+#include <unistd.h>
+#include "vl53l0x.h"
 
 
 #define UART_NUM UART_NUM_1  
@@ -193,13 +195,201 @@ void button_task(void *pvParameter) {
 }
 
 
+// void app_main(void) {
+//     init_lcd(); 
+//     init_button(); 
+
+//     srand(time(NULL)); // seed random number generator
+//     generate_random_equation();
+//     generate_answer_choices(); 
+
+//     xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
+// }
+
+
+
+void test_distance_sensor() {
+    // Define I2C port and pins (adjust as needed)
+    int8_t port = 0;  // I2C bus number
+    int8_t scl = 7;   // Clock pin
+    int8_t sda = 6;   // Data pin
+    int8_t xshut = 0; // XSHUT pin (set to -1 if not used)
+    uint8_t address = 0x29; // Default VL53L0X address
+    uint8_t io_2v8 = 0; // Set to 1 if using 2.8V logic
+
+    // Initialize the VL53L0X sensor
+    send_command(0x80); // first line 
+    char message2[] = "initializing...";
+    uart_write_bytes(UART_NUM, message2, strlen(message2)); 
+    vl53l0x_t *sensor = vl53l0x_config(port, scl, sda, xshut, address, io_2v8);
+    if (!sensor) {
+        send_command(0x80); // first line 
+        char msg[] = "failed to detect";
+        uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+        return;
+    } else {
+        send_command(0x80); // first line
+        send_command(0x01);  
+        char message1[] = "detected";
+        uart_write_bytes(UART_NUM, message1, strlen(message1)); 
+    }
+
+
+    send_command(0xC0); // second line
+    send_command(0x01);  
+    char message4[] = "init sesnor...";
+    uart_write_bytes(UART_NUM, message4, strlen(message4)); 
+    
+    const char *init_result = vl53l0x_init(sensor);
+    if (init_result) {
+        send_command(0x80); // first line 
+        char msg[16]; 
+        sprintf(msg, "fail: %s", init_result); 
+        uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+        // printf("VL53L0X initialization failed: %s\n", init_result);
+        vl53l0x_end(sensor);
+        return;
+    }
+
+    // printf("VL53L0X initialized successfully.\n");
+    send_command(0x80); // first line 
+    char msg[] = "init success";
+    uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+
+    // Start continuous measurement
+    vl53l0x_startContinuous(sensor, 0);
+    send_command(0x01);  
+
+    // Read and print 10 distance measurements
+    // for (int i = 0; i < 10; i++) {
+    while(1) {
+        uint16_t distance = vl53l0x_readRangeContinuousMillimeters(sensor);
+        if (vl53l0x_timeoutOccurred(sensor)) {
+            // printf("Timeout occurred while reading sensor.\n");
+            send_command(0x80); // first line 
+            char msg[] = "timeout occurred";
+            uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+            vTaskDelay(pdMS_TO_TICKS(50)); 
+        } else {
+            send_command(0x80); // first line 
+            char msg[16];
+            sprintf(msg, "%d mm", distance);
+            uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+            // printf("Distance: %d mm\n", distance);
+            vTaskDelay(pdMS_TO_TICKS(50)); 
+        }
+        usleep(500000); // Wait 500ms between readings
+    }
+
+    // Stop continuous measurement
+    vl53l0x_stopContinuous(sensor);
+    vl53l0x_end(sensor);
+}
+
+
+#include <stdio.h>
+#include "driver/i2c.h"
+#include "esp_log.h"
+
+#define I2C_MASTER_NUM I2C_NUM_0
+#define I2C_MASTER_SDA_IO 6
+#define I2C_MASTER_SCL_IO 7
+#define I2C_MASTER_FREQ_HZ 100000
+#define VL53L0X_ADDR 0x29
+
+// registers needed to read distance 
+#define VL53L0X_REG_SYSRANGE_START 0x00
+#define VL53L0X_REG_RESULT_RANGE_STATUS 0x14
+#define VL53L0X_REG_RESULT_RANGE 0x1E
+
+// i2c helper functions
+esp_err_t i2c_write_byte(uint8_t reg, uint8_t data) {
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (VL53L0X_ADDR << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, reg, true);
+    i2c_master_write_byte(cmd, data, true);
+    i2c_master_stop(cmd);
+    esp_err_t err = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+    return err;
+}
+
+esp_err_t i2c_read_byte(uint8_t reg, uint8_t *data) {
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (VL53L0X_ADDR << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, reg, true);
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (VL53L0X_ADDR << 1) | I2C_MASTER_READ, true);
+    i2c_master_read_byte(cmd, data, I2C_MASTER_NACK);
+    i2c_master_stop(cmd);
+    esp_err_t err = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+    return err;
+}
+
+esp_err_t i2c_read_word(uint8_t reg, uint16_t *data) {
+    uint8_t high, low;
+    esp_err_t err = i2c_read_byte(reg, &high);
+    if (err != ESP_OK) return err;
+    err = i2c_read_byte(reg + 1, &low);
+    if (err != ESP_OK) return err;
+    *data = (high << 8) | low;
+    return ESP_OK;
+}
+
+
+
+void test_distance_sensor2() {
+    i2c_config_t i2c_config = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = I2C_MASTER_SDA_IO,
+        .scl_io_num = I2C_MASTER_SCL_IO,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = I2C_MASTER_FREQ_HZ,
+    };
+    ESP_ERROR_CHECK(i2c_param_config(I2C_MASTER_NUM, &i2c_config));
+    ESP_ERROR_CHECK(i2c_driver_install(I2C_MASTER_NUM, I2C_MODE_MASTER, 0, 0, 0));
+
+    send_command(0x80); // first line 
+    char msg[] = "initializied";
+    uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+
+    while (1) {
+        i2c_write_byte(VL53L0X_REG_SYSRANGE_START, 0x01);
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+
+        // read distance result 
+        uint16_t distance; 
+        esp_err_t err = i2c_read_word(VL53L0X_REG_RESULT_RANGE, &distance);
+
+        if (err == ESP_OK) {
+            send_command(0x01); // clear display
+            if (distance != 20 && distance < 300) {
+                send_command(0xC0); // second line 
+                char msg[16];
+                sprintf(msg, "dist: %d", distance); 
+                uart_write_bytes(UART_NUM, msg, strlen(msg));
+            } else {
+                char msg[] = "dist: "; 
+                uart_write_bytes(UART_NUM, msg, strlen(msg));
+            }
+            
+             
+        } else {
+            send_command(0xC0); // second line 
+            char msg[] = "error reading dist";
+            uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+        }
+
+        vTaskDelay(500 / portTICK_PERIOD_MS );
+    }
+}
+
+
 void app_main(void) {
-    init_lcd(); 
-    init_button(); 
-
-    srand(time(NULL)); // seed random number generator
-    generate_random_equation();
-    generate_answer_choices(); 
-
-    xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
+    init_lcd();    
+    // test_distance_sensor2();
 }

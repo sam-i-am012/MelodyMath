@@ -44,21 +44,6 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_driver_gpio/cmake_install.cmake")
-endif()
-
-if(NOT CMAKE_INSTALL_LOCAL_ONLY)
-  # Include the install script for the subdirectory.
-  include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_timer/cmake_install.cmake")
-endif()
-
-if(NOT CMAKE_INSTALL_LOCAL_ONLY)
-  # Include the install script for the subdirectory.
-  include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_pm/cmake_install.cmake")
-endif()
-
-if(NOT CMAKE_INSTALL_LOCAL_ONLY)
-  # Include the install script for the subdirectory.
   include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/mbedtls/cmake_install.cmake")
 endif()
 
@@ -114,7 +99,17 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
+  include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_driver_gpio/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
   include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/spi_flash/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_timer/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
@@ -180,6 +175,11 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
   include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/cxx/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/esp_pm/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
@@ -285,6 +285,11 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
   include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/driver/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build/esp-idf/VL53L0X/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)

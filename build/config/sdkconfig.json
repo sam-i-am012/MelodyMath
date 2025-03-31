@@ -985,6 +985,7 @@
     "TWAI_ISR_IN_IRAM": false,
     "UART_ISR_IN_IRAM": false,
     "USJ_ENABLE_USB_SERIAL_JTAG": true,
+    "VL53L0X_DEBUG": false,
     "XTAL_FREQ": 40,
     "XTAL_FREQ_40": true
 }
