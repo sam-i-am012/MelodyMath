@@ -10,6 +10,9 @@
 #include "vl53l0x.h"
 #include "driver/i2c.h"
 #include "driver/ledc.h"
+#include "esp_mac.h"
+
+#include "melody_math.h"
 
 
 // PWM stuff 
@@ -40,6 +43,9 @@ int melodyLength = sizeof(melody) / sizeof(melody[0]);
 int errorLength = sizeof(errorMelody) / sizeof(errorMelody[0]);
 int pauseDuration = 100; // for the pause between the notes 
 
+int musicMode = 0; // flag - 0 if not in music mode, 1 if we are in music mode 
+bool music_answer_selected = 0; // flag 
+int music_user_answer = -1; // the result the answer chose 
 
 
 #define UART_NUM UART_NUM_1  
@@ -65,6 +71,9 @@ int pauseDuration = 100; // for the pause between the notes
 int correct_answer = 0; 
 int answer_choices[4]; // four answer choices 
 int equation_count = 0; // to track how many equations have been played 
+
+int music_choices[6] = {0}; // 6 answer choices for music mode initialized to all 0 
+int music_answer = 0; 
 
 // global vars for the distance sensor 
 uint16_t distance; 
@@ -147,27 +156,31 @@ void servo_set_angle(int angle) {
 }
 
 
-void play_melody(int melodyLength, int* melody, int* noteDuration) {
-    for (int i = 0; i < melodyLength; i++) {
-        int frequency = melody[i];
-        int duration = noteDurations[i];
 
-        // ESP_LOGI(TAG, "Playing: %d Hz, Duration: %d ms", frequency, duration);
 
-        // Set frequency and enable sound
-        ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER, frequency);
-        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 512); // 50% duty cycle
-        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
+// void play_melody(int melodyLength, int* melody, int* noteDuration) {
+//     for (int i = 0; i < melodyLength; i++) {
+//         int frequency = melody[i];
+//         int duration = noteDurations[i];
 
-        vTaskDelay(duration / portTICK_PERIOD_MS);
+//         // ESP_LOGI(TAG, "Playing: %d Hz, Duration: %d ms", frequency, duration);
 
-        // Stop sound
-        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 0);
-        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
+//         // Set frequency and enable sound
+//         ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER, frequency);
+//         ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 512); // 50% duty cycle
+//         ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
 
-        vTaskDelay(pauseDuration / portTICK_PERIOD_MS);
-    }
-}
+//         vTaskDelay(duration / portTICK_PERIOD_MS);
+
+//         // Stop sound
+//         ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 0);
+//         ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
+
+//         vTaskDelay(pauseDuration / portTICK_PERIOD_MS);
+//     }
+// }
+
+
 
 
 // ========================== i2c helper functions ==========================
@@ -290,6 +303,11 @@ void init_distance_sensor() {
     // send_command(0x80); // first line 
     // char msg[] = "initializied";
     // uart_write_bytes(UART_NUM, msg, strlen(msg));
+
+     // Configure sensor for accurate readings
+    //  i2c_write_byte(VL53L0X_REG_SYSTEM_RANGE_CONFIG, 0x01);
+    //  i2c_write_byte(VL53L0X_REG_VCSEL_PERIOD_PRE, 0x14);  // Set VCSEL period
+    //  i2c_write_byte(VL53L0X_REG_VCSEL_PERIOD_FINAL, 0x10);
 }
 
 // =============================================================================
@@ -365,17 +383,217 @@ void generate_random_equation(void) {
     vTaskDelay(pdMS_TO_TICKS(100)); // small delay
 }
 
-void music_mode(void) {
+void math_game(void) {
+    if(!musicMode) {
+        generate_random_equation();
+        generate_answer_choices(); 
+    }
+    
+}
+
+// use for sound effects? 
+void play_melody(int melodyLength, int* melody, int* noteDuration) {
+    for (int i = 0; i < melodyLength; i++) {
+        int frequency = melody[i];
+        int duration = noteDurations[i];
+        // Set frequency and enable sound
+        ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER, frequency);
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 512); // 50% duty cycle
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
+
+        vTaskDelay(duration / portTICK_PERIOD_MS);
+
+        // Stop sound
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 0);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
+
+        vTaskDelay(pauseDuration / portTICK_PERIOD_MS);
+    }
+}
+
+void play_game_melody(int melodyLength, int* melody, int* noteDuration) {
+    for (int i = 0; i < melodyLength; i++) {
+        int frequency = melody[i];
+        int duration = noteDurations[i];
+        // char msg[16]; 
+        // sprintf(msg, "tune: %d", i); 
+        // lcd_write_second(msg); 
+        music_choices[i] = melody[i]; 
+        // choose a random number out of 6
+        int rand_num = (rand() % 6) + 1; // rand num between 1 and 6
+        music_answer = rand_num - 1; 
+        char letter; 
+        switch(rand_num) {
+            case 1:
+                letter = 'a';
+                break; 
+            case 2:
+                letter = 'b';
+                break; 
+            case 3:
+                letter = 'c';
+                break; 
+            case 4:
+                letter = 'd';
+                break; 
+            case 5:
+                letter = 'e';
+                break; 
+            case 6:
+                letter = 'f';
+                break; 
+            default: 
+                letter = 'z';
+        }
+
+        
+        // Set frequency and enable sound
+        ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER, frequency);
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 512); // 50% duty cycle
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
+
+        char msg2[16]; 
+        sprintf(msg2, "%c", letter); 
+        lcd_write_first(msg2); 
+
+        vTaskDelay(duration / portTICK_PERIOD_MS);
+
+        // char msg2[16]; 
+        // sprintf(msg2, "%c", letter); 
+        // lcd_write_first(msg2); 
+        // vTaskDelay(pdMS_TO_TICKS(2000)); // show message for 2 seconds 
+
+
+
+
+        // Stop sound
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 0);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
+
+        // char msg2[16]; 
+        // sprintf(msg2, "%c", letter); 
+        // lcd_write_first(msg2); 
+        // vTaskDelay(pdMS_TO_TICKS(2000)); // show message for 2 seconds 
+
+
+        vTaskDelay(pauseDuration / portTICK_PERIOD_MS);
+
+    }
     lcd_clear(); 
-    char msg[16] = "   Music Mode";
-    lcd_write_first(msg); 
-    // send_command(0x80); // first line 
-    // uart_write_bytes(UART_NUM, msg, strlen(msg));
+
+    char upper[16] = "a  b   c   d   e";
+    lcd_write_first(upper);
+
+    char lower[16] = "               f";
+    lcd_write_second(lower);
+    // check_music_answer(); 
+}
+
+void check_music_answer(int button_index) {
+    // a = 0, b = 1, c = 2, d = 3, e < 200, f > 200  
+    int e_count = 0; 
+    int f_count = 0; 
+    int required_stable = 5; // number of conseutive readings needed to consider this the answer chosen 
+    
+    // lcd_clear(); 
+    // check the button inputs 
+    
+    // } else {
+        // monitor the distance for stability 
+        // while (!music_answer_selected) {
+        //     // for (int i = 0; i < required_stable; i++) {)
+        //         vTaskDelay(pdMS_TO_TICKS(100)); // checking every 100ms 
+        //         if (distance > 20 && distance < 200) { // for answer choice e 
+        //             e_count++; 
+        //             f_count--; 
+        //         } else if (distance > 200 && distance < 500) {
+        //             f_count++; 
+        //             e_count--;
+        //         } else { // out of range, reset the counts 
+        //             e_count = 0; 
+        //             f_count = 0; 
+        //         }
+
+        //         if (e_count == required_stable || f_count == required_stable) {
+        //             music_answer_selected = 1; 
+        //             break; 
+        //         }
+        //     // }
+        // }
+        
+    // }
+
+    if(button_index == music_answer) {
+        lcd_clear();
+        char msg[16] = "correct";
+        lcd_write_first(msg);  
+    } else {
+        lcd_clear();
+        char msg[16] = "wrong";
+        lcd_write_first(msg);  
+    }
+    // else if (e_count == required_stable && music_answer == 4) {
+    //     lcd_clear();
+    //     char msg[16] = "correct";
+    //     lcd_write_first(msg); 
+    //     vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
+
+    // } else if (f_count == required_stable && music_answer ==5) {
+    //     lcd_clear();
+    //     char msg[16] = "correct";
+    //     lcd_write_first(msg); 
+    //     vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
+
+    // } else {
+    //     char msg[16] = "wrong";
+    //     lcd_clear(); 
+    //     lcd_write_first(msg); 
+    // }
+    // if(button_index == music_answer) {
+    //     lcd_clear(); 
+    //     char msg[16] = "correct";
+    //     lcd_write_first(msg); 
+    // } else if(distance > 20 && distance < 200 && music_answer == 4) {
+    //     char msg[16] = "correct";
+    //     lcd_clear(); 
+    //     lcd_write_first(msg); 
+    // } else if(distance > 200 && distance < 500 && music_answer == 4) {
+    //     char msg[16] = "correct";
+    //     lcd_clear(); 
+    //     lcd_write_first(msg); 
+    // } else {
+    //     char msg[16] = "wrong";
+    //     lcd_clear(); 
+    //     lcd_write_first(msg); 
+    // }
+    vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
+
+
+    musicMode = 0; 
+    math_game();
+    // music_mode(); 
+}
+
+void music_mode(void) {
+    musicMode = 1; 
+    lcd_clear(); 
+    // char msg[16] = "   Music Mode";
+    // lcd_write_first(msg); 
     vTaskDelay(pdMS_TO_TICKS(2000)); // show message for 2 seconds 
 
-    play_melody(melodyLength, melody, noteDurations);
+    int game[] = { 330, 349, 392}; // in Hz
+    int gameDurations[] = { 300, 400, 500}; // in ms 
+
+    for(int i = 0; i < 3; i++) { // only play 3 tunes for now 
+
+    }
+
+    play_game_melody(1, melody, noteDurations);
     vTaskDelay(1000 / portTICK_PERIOD_MS); // wait before next cycle
 }
+
+
+
 
 void check_answer(int button_index) {
     if(answer_choices[button_index] == correct_answer) {
@@ -401,109 +619,112 @@ void check_answer(int button_index) {
         music_mode(); // go into music mode 
     }
 
-    // generate new question 
-    generate_random_equation(); 
-    generate_answer_choices(); 
+    // go back to math game 
+    math_game(); 
+    // generate_random_equation(); 
+    // generate_answer_choices(); 
 }
 
 void button_task(void *pvParameter) {
     while (1) {
-        if (gpio_get_level(button1) == 0) { // since it's active low 
-            check_answer(0); 
-            // while (gpio_get_level(button1) == 0); // wait until release 
-            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
-        } else if (gpio_get_level(button2) == 0) { // since it's active low 
-            check_answer(1); 
-            // while (gpio_get_level(button1) == 0); // wait until release 
-            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
-        } else if (gpio_get_level(button3) == 0) { // since it's active low 
-            check_answer(2); 
-            // while (gpio_get_level(button1) == 0); // wait until release 
-            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
-        } else if (gpio_get_level(button4) == 0) { // since it's active low 
-            check_answer(3); 
-            // while (gpio_get_level(button1) == 0); // wait until release 
-            vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
-        } 
-        vTaskDelay(pdMS_TO_TICKS(10)); // check every 10ms
+        if(!musicMode) {
+            if (gpio_get_level(button1) == 0) { // since it's active low 
+                check_answer(0); 
+                // while (gpio_get_level(button1) == 0); // wait until release 
+                vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+            } else if (gpio_get_level(button2) == 0) { // since it's active low 
+                check_answer(1); 
+                // while (gpio_get_level(button1) == 0); // wait until release 
+                vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+            } else if (gpio_get_level(button3) == 0) { // since it's active low 
+                check_answer(2); 
+                // while (gpio_get_level(button1) == 0); // wait until release 
+                vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+            } else if (gpio_get_level(button4) == 0) { // since it's active low 
+                check_answer(3); 
+                // while (gpio_get_level(button1) == 0); // wait until release 
+                vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+            } 
+            vTaskDelay(pdMS_TO_TICKS(10)); // check every 10ms
+        } else { // we are in music mode 
+            if (gpio_get_level(button1) == 0) { // since it's active low 
+                music_answer_selected = 1; 
+                // music_user_answer = 0; 
+                check_music_answer(0); 
+                vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+            } else if (gpio_get_level(button2) == 0) { // since it's active low 
+                music_answer_selected = 1; 
+                music_user_answer = 1; 
+                check_music_answer(1);
+                // while (gpio_get_level(button1) == 0); // wait until release 
+                vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+            } else if (gpio_get_level(button3) == 0) { // since it's active low 
+                music_answer_selected = 1; 
+                music_user_answer = 2; 
+                check_music_answer(2);
+                // while (gpio_get_level(button1) == 0); // wait until release 
+                vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+            } else if (gpio_get_level(button4) == 0) { // since it's active low 
+                music_answer_selected = 1; 
+                music_user_answer = 3; 
+                check_music_answer(3);
+                // while (gpio_get_level(button1) == 0); // wait until release 
+                vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+            } 
+            vTaskDelay(pdMS_TO_TICKS(10)); // check every 10ms
+        }
     }
 }
 
 
-// esp_err_t read_distance() { // read distance from the sensor 
+
+void read_distance() { // read distance from the sensor 
+    // while (1) {
+    i2c_write_byte(VL53L0X_REG_SYSRANGE_START, 0x01);
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+
+    // the the result into variable 'distance'  
+    distance_err = i2c_read_word(VL53L0X_REG_RESULT_RANGE, &distance);
+
+    if (distance_err == ESP_OK) {
+        // lcd_clear(); 
+        // if (distance > 20 && distance < 500) {
+            // char msg[16];
+            // sprintf(msg, "%d", distance); 
+            // lcd_write_second(msg); 
+        // } else {
+        //     send_command(0xC0); // first line 
+        //     char msg[] = "out of bounds"; 
+        //     // lcd_write_second(msg); 
+        //     uart_write_bytes(UART_NUM, msg, strlen(msg));
+        // }    
+    } else { // issue with being able to read from the sensor properly 
+        char msg[16]; 
+        sprintf(msg, "Error: %s", esp_err_to_name(distance_err)); // read the error message
+        // lcd_write_second(msg); 
+    }
+
+    vTaskDelay(500 / portTICK_PERIOD_MS );
+    // }
+}
+
+
+// void distance_sensor_task(void *pvParameter) {
 //     while (1) {
-//         i2c_write_byte(VL53L0X_REG_SYSRANGE_START, 0x01);
-//         vTaskDelay(50 / portTICK_PERIOD_MS);
-
-//         // the the result into variable 'distance'  
-//         distance_err = i2c_read_word(VL53L0X_REG_RESULT_RANGE, &distance);
-
-//         if (distance_err == ESP_OK) {
-//             lcd_clear(); 
-//             if (distance > 20 && distance < 500) {
-//                 char msg[16];
-//                 sprintf(msg, "dist: %d", distance); 
-//                 lcd_write_second(msg); 
-//             } else {
-//                 send_command(0xC0); // first line 
-//                 char msg[] = "out of bounds"; 
-//                 // lcd_write_second(msg); 
-//                 uart_write_bytes(UART_NUM, msg, strlen(msg));
-//             }    
-//         } else { // issue with being able to read from the sensor properly 
-//             char msg[16]; 
-//             sprintf(msg, "Error: %s", esp_err_to_name(distance_err)); // read the error message
-//             // lcd_write_second(msg); 
+//         esp_err_t err = read_distance();
+//         if (err == ESP_OK) {
+//             char msg[16];
+//             sprintf(msg, "dist: %d", distance);
+//             lcd_write_second(msg);
+//         } else {
+//             char msg[16] = "Error reading"; 
+//             lcd_write_second(msg);
 //         }
-
-//         vTaskDelay(500 / portTICK_PERIOD_MS );
+//         vTaskDelay(pdMS_TO_TICKS(500)); // Read every 500ms
 //     }
 // }
 
 
-esp_err_t read_distance() { // read distance from the sensor 
-    while (1) {
-        i2c_write_byte(VL53L0X_REG_SYSRANGE_START, 0x01);
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-
-        // the the result into variable 'distance'  
-        distance_err = i2c_read_word(VL53L0X_REG_RESULT_RANGE, &distance);
-
-        if (distance_err == ESP_OK) {
-            lcd_clear(); 
-            if (!(distance > 20 && distance < 500)){
-                send_command(0xC0); // first line 
-                char msg[] = "out of bounds"; 
-                // lcd_write_second(msg); 
-                uart_write_bytes(UART_NUM, msg, strlen(msg));
-            } else if (distance > 200) {
-                char msg[16];
-                sprintf(msg, "dist: %d", distance); 
-                lcd_write_first(msg); 
-                char msg2[16] = "melody 1"; 
-                lcd_write_second(msg2); 
-                play_melody(melodyLength, melody, noteDurations);
-                vTaskDelay(pdMS_TO_TICKS(1000));
-            } else  { 
-                char msg[16];
-                sprintf(msg, "dist: %d", distance); 
-                lcd_write_first(msg); 
-                char msg2[16] = "melody 2"; 
-                lcd_write_second(msg2); 
-
-                play_melody(errorLength, errorMelody, errorDurations); 
-                vTaskDelay(pdMS_TO_TICKS(1000));
-            }
-
-        } else { // issue with being able to read from the sensor properly 
-            char msg[16]; 
-            sprintf(msg, "Error: %s", esp_err_to_name(distance_err)); // read the error message
-            // lcd_write_second(msg); 
-        }
-
-        vTaskDelay(500 / portTICK_PERIOD_MS );
-    }
-}
 void speaker_task(void *pvParameter) {
     while (1) {
         play_melody(melodyLength, melody, noteDurations); 
@@ -511,24 +732,59 @@ void speaker_task(void *pvParameter) {
     }
 }
 
+void distance_sensor_task(void *pvParameter) {
+    while (1) {
+        read_distance();
+        // lcd_clear(); 
+        // char msg[16]; 
+        // sprintf(msg, "%d", distance);
+        // lcd_write_second(msg); 
+
+        // check_music_answer()
+    }
+    
+}
+
+
 void app_main(void) {
     // initialize everything 
     init_lcd(); 
     init_button(); 
     init_distance_sensor(); 
     init_speaker();
+    servo_init();
+    srand(time(NULL)); // seed random number generator
 
-    // play_melody(); 
 
-    // srand(time(NULL)); // seed random number generator
+    // read_distance(); 
+
+    // char msg[16];
+    // sprintf(msg, "mode: %d", musicMode); 
+    // lcd_write_first(msg); 
+        music_mode(); 
+    // math_game(); 
+
+    xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
+    xTaskCreate(distance_sensor_task, "distance_sensor_task", 2048, NULL, 5, NULL); 
+
+
+    // play_melody(melodyLength, melody, noteDurations);
+    // lcd_clear();  
+    // char msg[]
+    // char upper[16] = "a  b   c   d   e";
+    // lcd_write_first(upper);
+
+    // char lower[16] = "f";
+    // lcd_write_second(lower);
+
+
     // generate_random_equation();
     // generate_answer_choices(); 
 
-    // xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
-    read_distance(); // continuously read distance from the distance sensor 
+
+    // read_distance(); // continuously read distance from the distance sensor 
     // xTaskCreate(speaker_task, "speaker_task", 2048, NULL, 5, NULL);
 
-    servo_init();
 
     // while (1) {
         // start at 180 
