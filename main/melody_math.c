@@ -486,14 +486,38 @@ void play_game_melody(int melodyLength, int* melody, int* noteDuration) {
 
     char lower[16] = "               f";
     lcd_write_second(lower);
+
+
+    // do {
+    //     if (music_answer_selected) {
+    //         // lcd_clear();
+    //         // char msg[16];
+    //         // sprintf(msg, "dist: %d", distance); 
+    //         // lcd_write_first(msg); 
+    
+    //         if (music_user_answer == music_answer) {
+    //             lcd_clear();
+    //             char msg[16] = "correct";
+    //             lcd_write_first(msg);  
+    //         }
+    //     }
+    // } while (!music_answer_selected);
+    
+
+    // music_user_answer = -1; 
+    // music_answer_selected = 0; 
+
+    // xTaskCreate(music_answer, "distance_sensor_task", 2048, NULL, 5, NULL); 
+
+
     // check_music_answer(); 
 }
 
 void check_music_answer(int button_index) {
     // a = 0, b = 1, c = 2, d = 3, e < 200, f > 200  
-    int e_count = 0; 
-    int f_count = 0; 
-    int required_stable = 5; // number of conseutive readings needed to consider this the answer chosen 
+    // int e_count = 0; 
+    // int f_count = 0; 
+    // int required_stable = 5; // number of conseutive readings needed to consider this the answer chosen 
     
     // lcd_clear(); 
     // check the button inputs 
@@ -523,15 +547,91 @@ void check_music_answer(int button_index) {
         
     // }
 
-    if(button_index == music_answer) {
-        lcd_clear();
-        char msg[16] = "correct";
-        lcd_write_first(msg);  
-    } else {
-        lcd_clear();
-        char msg[16] = "wrong";
-        lcd_write_first(msg);  
-    }
+    // while (!music_answer_selected) {
+
+    // } // spin 
+
+
+    // while (!music_answer_selected) {
+    //     char msg[16]; 
+    //     sprintf(msg, "%d", distance);
+    //     lcd_write_second(msg); 
+
+    //     if (gpio_get_level(button1) == 0) { // since it's active low 
+    //         music_answer_selected = 1; 
+    //         music_user_answer = 0; 
+    //         // check_music_answer(0); 
+    //         vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+    //     } else if (gpio_get_level(button2) == 0) { // since it's active low 
+    //         music_answer_selected = 1; 
+    //         music_user_answer = 1; 
+    //         // check_music_answer(1);
+    //         // while (gpio_get_level(button1) == 0); // wait until release 
+    //         vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+    //     } else if (gpio_get_level(button3) == 0) { // since it's active low 
+    //         music_answer_selected = 1; 
+    //         music_user_answer = 2; 
+    //         // check_music_answer(2);
+    //         // while (gpio_get_level(button1) == 0); // wait until release 
+    //         vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+    //     } else if (gpio_get_level(button4) == 0) { // since it's active low 
+    //         music_answer_selected = 1; 
+    //         music_user_answer = 3; 
+    //         // check_music_answer(3);
+    //         // while (gpio_get_level(button1) == 0); // wait until release 
+    //         vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
+    //     } else if (distance > 20 && distance < 200) {
+    //         char msg[16] = "e";
+    //         lcd_write_second(msg);  
+    //         music_user_answer = 4;
+    //         music_answer_selected = 1;
+    //     } else if (distance > 200 && distance < 500) {
+    //         char msg[16] = "f";
+    //         lcd_write_second(msg); 
+    //         music_user_answer = 5; 
+    //         music_answer_selected = 1; 
+            
+    //     }
+    //     vTaskDelay(pdMS_TO_TICKS(10)); // check every 10ms
+    // }
+
+        if(button_index == music_answer) {
+            lcd_clear();
+            char msg[16] = "correct";
+            lcd_write_first(msg);  
+        } else {
+            lcd_clear();
+            char msg[16] = "wrong";
+            lcd_write_first(msg);  
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
+
+        
+
+        
+
+
+
+        
+
+        music_user_answer = -1; 
+        music_answer_selected = 0; 
+
+    //     if (music_answer_selected) {
+    //         // lcd_clear();
+    //         // char msg[16];
+    //         // sprintf(msg, "dist: %d", distance); 
+    //         // lcd_write_first(msg); 
+
+    //         if (music_user_answer == music_answer) {
+    //             lcd_clear();
+    //             char msg[16] = "correct";
+    //             lcd_write_first(msg);  
+    //         }
+    //     }
+    
+    // music_user_answer = -1; 
+    // music_answer_selected = 0; 
     // else if (e_count == required_stable && music_answer == 4) {
     //     lcd_clear();
     //     char msg[16] = "correct";
@@ -589,7 +689,7 @@ void music_mode(void) {
     }
 
     play_game_melody(1, melody, noteDurations);
-    vTaskDelay(1000 / portTICK_PERIOD_MS); // wait before next cycle
+    // vTaskDelay(1000 / portTICK_PERIOD_MS); // wait before next cycle
 }
 
 
@@ -649,7 +749,7 @@ void button_task(void *pvParameter) {
         } else { // we are in music mode 
             if (gpio_get_level(button1) == 0) { // since it's active low 
                 music_answer_selected = 1; 
-                // music_user_answer = 0; 
+                music_user_answer = 0; 
                 check_music_answer(0); 
                 vTaskDelay(pdMS_TO_TICKS(50)); // debounce delay
             } else if (gpio_get_level(button2) == 0) { // since it's active low 
@@ -735,9 +835,53 @@ void speaker_task(void *pvParameter) {
 void distance_sensor_task(void *pvParameter) {
     while (1) {
         read_distance();
+        if (musicMode && !music_answer_selected) {
+            // char msg[16] = "in music mode"; 
+            // lcd_write_second(msg); 
+    
+            // check_music_answer()
+            if (distance > 20 && distance < 200) {
+                char msg[16] = "e";
+                lcd_write_second(msg);  
+                music_user_answer = 4;
+                music_answer_selected = 1;
+                if (music_answer == 4) {
+                    lcd_clear();
+                    char msg[16] = "correct";
+                    lcd_write_first(msg); 
+                } else {
+                    lcd_clear();
+                    char msg[16] = "wrong";
+                    lcd_write_first(msg); 
+                    
+                }
+                musicMode = 0; 
+                math_game(); 
+            } else if (distance > 200 && distance < 500) {
+                char msg[16] = "f";
+                lcd_write_second(msg); 
+                music_user_answer = 5; 
+                music_answer_selected = 1; 
+                if (music_answer == 5) {
+                    lcd_clear();
+                    char msg[16] = "correct";
+                    lcd_write_first(msg); 
+                    vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
+
+                } else {
+                    lcd_clear();
+                    char msg[16] = "wrong";
+                    lcd_write_first(msg); 
+                    vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
+                }
+                musicMode = 0; 
+                math_game(); 
+                
+            }
+        }
         // lcd_clear(); 
         // char msg[16]; 
-        // sprintf(msg, "%d", distance);
+        // sprintf(msg, "dist: %d", distance);
         // lcd_write_second(msg); 
 
         // check_music_answer()
@@ -761,8 +905,8 @@ void app_main(void) {
     // char msg[16];
     // sprintf(msg, "mode: %d", musicMode); 
     // lcd_write_first(msg); 
-        music_mode(); 
-    // math_game(); 
+        // music_mode(); 
+    math_game(); 
 
     xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
     xTaskCreate(distance_sensor_task, "distance_sensor_task", 2048, NULL, 5, NULL); 
