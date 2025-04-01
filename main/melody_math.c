@@ -8,26 +8,234 @@
 #include "driver/gpio.h"
 #include <unistd.h>
 #include "vl53l0x.h"
+#include "driver/i2c.h"
+#include "driver/ledc.h"
+
+
+// PWM stuff 
+#define SERVO_PIN 10 // for the servo 
+#define AUDIO_PIN 18 // PWM output pin for the speaker
+
+
+// LEDC PWM Config
+#define LEDC_MODE               LEDC_LOW_SPEED_MODE
+#define LEDC_CHANNEL            LEDC_CHANNEL_0
+#define LEDC_FREQUENCY          50  // 50Hz for servo control
+#define LEDC_RESOLUTION         LEDC_TIMER_16_BIT
+#define SERVO_MIN_PULSEWIDTH    500  // 0.5ms (0 degrees)
+#define SERVO_MAX_PULSEWIDTH    2500 // 2.5ms (180 degrees)
+#define SERVO_MAX_DEGREE        180  // Max rotation
+
+#define LEDC_TIMER LEDC_TIMER_0
+
+// int melody[] = { 262, 294, 330, 349, 392, 440, 494, 523 };
+// int noteDurations[] = { 400, 400, 400, 400, 400, 400, 400, 800 };
+int melody[] = { 330, 349, 392, 294, 330, 262, 330, 440, 330 }; // in Hz
+int noteDurations[] = { 300, 400, 500, 300, 400, 500, 300, 600, 800 }; // in ms 
+int errorMelody[] = { 500, 300, 100 };  // Descending error sound
+int errorDurations[] = { 200, 200, 200 };
+
+int melodyLength = sizeof(melody) / sizeof(melody[0]);
+
+int errorLength = sizeof(errorMelody) / sizeof(errorMelody[0]);
+int pauseDuration = 100; // for the pause between the notes 
+
 
 
 #define UART_NUM UART_NUM_1  
-#define TXD_PIN 16           // ESP32-C6 TX -> SerLCD RX
+#define TXD_PIN 16           // esp32 TX to lcd RX
 #define BAUD_RATE 9600       
 
-#define button1 18  // button1 -> GPIO18
-#define button2 19  // button2 -> GPIO19
-#define button3 20  // button3 -> GPIO20
-#define button4 21  // button3 -> GPIO20
+#define button1 5  
+#define button2 0 
+#define button3 1 
+#define button4 2  
+
+#define I2C_MASTER_NUM I2C_NUM_0
+#define I2C_MASTER_SDA_IO 6 // sda
+#define I2C_MASTER_SCL_IO 7 // scl 
+#define I2C_MASTER_FREQ_HZ 100000
+#define VL53L0X_ADDR 0x29
+
+// registers needed to read distance 
+#define VL53L0X_REG_SYSRANGE_START 0x00
+#define VL53L0X_REG_RESULT_RANGE_STATUS 0x14
+#define VL53L0X_REG_RESULT_RANGE 0x1E
 
 int correct_answer = 0; 
 int answer_choices[4]; // four answer choices 
 int equation_count = 0; // to track how many equations have been played 
+
+// global vars for the distance sensor 
+uint16_t distance; 
+esp_err_t distance_err; 
+
+
+void init_speaker() { 
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode = LEDC_MODE,      
+        .duty_resolution = LEDC_TIMER_10_BIT,
+        .timer_num = LEDC_TIMER_0, // uses a different timer than the pwm for the servo 
+        .freq_hz = 1000 // default frequency
+    };
+    ledc_timer_config(&ledc_timer);
+
+    ledc_channel_config_t ledc_channel = {
+        .gpio_num = AUDIO_PIN,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = LEDC_CHANNEL_0, // uses a different channel for than the one for the servo 
+        .intr_type = LEDC_INTR_DISABLE,
+        .timer_sel = LEDC_TIMER_0,
+        .duty = 0 // we start with no sound 
+    };
+    ledc_channel_config(&ledc_channel);
+}
+
+// original: 
+// void init_pwm() { // for the speaker 
+//     ledc_timer_config_t ledc_timer = {
+//         .speed_mode = LEDC_LOW_SPEED_MODE,      
+//         .duty_resolution = LEDC_TIMER_10_BIT,
+//         .timer_num = LEDC_TIMER,
+//         .freq_hz = 1000 // default frequency
+//     };
+//     ledc_timer_config(&ledc_timer);
+
+//     ledc_channel_config_t ledc_channel = {
+//         .gpio_num = AUDIO_PIN,
+//         .speed_mode = LEDC_LOW_SPEED_MODE,
+//         .channel = LEDC_CHANNEL,
+//         .intr_type = LEDC_INTR_DISABLE,
+//         .timer_sel = LEDC_TIMER,
+//         .duty = 0 // we start with no sound 
+//     };
+//     ledc_channel_config(&ledc_channel);
+// }
+
+
+// Function to calculate PWM duty cycle
+int angle_to_duty(int angle) {
+    return (SERVO_MIN_PULSEWIDTH + (angle * (SERVO_MAX_PULSEWIDTH - SERVO_MIN_PULSEWIDTH) / SERVO_MAX_DEGREE));
+}
+
+void servo_init() { // uses different timer and channel than the speaker 
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode = LEDC_MODE,
+        .timer_num = LEDC_TIMER,
+        .duty_resolution = LEDC_RESOLUTION,
+        .freq_hz = LEDC_FREQUENCY
+    };
+    ledc_timer_config(&ledc_timer);
+
+    ledc_channel_config_t ledc_channel = {
+        .gpio_num = SERVO_PIN,
+        .speed_mode = LEDC_MODE,
+        .channel = LEDC_CHANNEL_0,
+        .intr_type = LEDC_INTR_DISABLE,
+        .timer_sel = LEDC_TIMER,
+        .duty = 0, // Start with 0 duty cycle
+        .hpoint = 0
+    };
+    ledc_channel_config(&ledc_channel);
+}
+
+// Move servo to a specific angle
+void servo_set_angle(int angle) {
+    int duty = angle_to_duty(angle); // Convert angle to duty cycle
+    ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, duty);
+    ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
+}
+
+
+void play_melody(int melodyLength, int* melody, int* noteDuration) {
+    for (int i = 0; i < melodyLength; i++) {
+        int frequency = melody[i];
+        int duration = noteDurations[i];
+
+        // ESP_LOGI(TAG, "Playing: %d Hz, Duration: %d ms", frequency, duration);
+
+        // Set frequency and enable sound
+        ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER, frequency);
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 512); // 50% duty cycle
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
+
+        vTaskDelay(duration / portTICK_PERIOD_MS);
+
+        // Stop sound
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 0);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL);
+
+        vTaskDelay(pauseDuration / portTICK_PERIOD_MS);
+    }
+}
+
+
+// ========================== i2c helper functions ==========================
+esp_err_t i2c_write_byte(uint8_t reg, uint8_t data) {
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (VL53L0X_ADDR << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, reg, true);
+    i2c_master_write_byte(cmd, data, true);
+    i2c_master_stop(cmd);
+    esp_err_t err = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+    return err;
+}
+
+esp_err_t i2c_read_byte(uint8_t reg, uint8_t *data) {
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (VL53L0X_ADDR << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, reg, true);
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (VL53L0X_ADDR << 1) | I2C_MASTER_READ, true);
+    i2c_master_read_byte(cmd, data, I2C_MASTER_NACK);
+    i2c_master_stop(cmd);
+    esp_err_t err = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+    return err;
+}
+
+esp_err_t i2c_read_word(uint8_t reg, uint16_t *data) {
+    uint8_t high, low;
+    esp_err_t err = i2c_read_byte(reg, &high);
+    if (err != ESP_OK) return err;
+    err = i2c_read_byte(reg + 1, &low);
+    if (err != ESP_OK) return err;
+    *data = (high << 8) | low;
+    return ESP_OK;
+}
+
+// =============================================================================
+
+
+// ============ functions to make it easier to write to the LCD  =============
 
 void send_command(uint8_t command) {
     uint8_t cmd[] = {0xFE, command}; // 0xFE is command prefix for SerLCD
     uart_write_bytes(UART_NUM, (const char *)cmd, sizeof(cmd));
     vTaskDelay(pdMS_TO_TICKS(100)); // small delay 
 }
+
+void lcd_clear() { // to clear the LCD dispay
+    send_command(0x01); // clear display
+}
+
+void lcd_write_first(char msg[16]) { // to write to the first line of the screen 
+    send_command(0x80); // first line 
+    uart_write_bytes(UART_NUM, msg, strlen(msg));
+}
+
+void lcd_write_second(char msg[16]) { // to write to the second line of the screen 
+    send_command(0xC0); // first line 
+    uart_write_bytes(UART_NUM, msg, strlen(msg));
+}
+
+// =============================================================================
+
+
+// ========================== initializing things  ============================
 
 void init_lcd() {
     // config UART1 for communication with SerLCD
@@ -66,6 +274,26 @@ void init_button() {
     gpio_set_direction(button4, GPIO_MODE_INPUT);
     gpio_set_pull_mode(button4, GPIO_PULLUP_ONLY); 
 }
+
+void init_distance_sensor() {
+    i2c_config_t i2c_config = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = I2C_MASTER_SDA_IO,
+        .scl_io_num = I2C_MASTER_SCL_IO,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = I2C_MASTER_FREQ_HZ,
+    };
+    ESP_ERROR_CHECK(i2c_param_config(I2C_MASTER_NUM, &i2c_config));
+    ESP_ERROR_CHECK(i2c_driver_install(I2C_MASTER_NUM, I2C_MODE_MASTER, 0, 0, 0));
+
+    // send_command(0x80); // first line 
+    // char msg[] = "initializied";
+    // uart_write_bytes(UART_NUM, msg, strlen(msg));
+}
+
+// =============================================================================
+
 
 void generate_answer_choices(void) {
     // randomly generate 3 unique incorrect answers 
@@ -137,20 +365,32 @@ void generate_random_equation(void) {
     vTaskDelay(pdMS_TO_TICKS(100)); // small delay
 }
 
+void music_mode(void) {
+    lcd_clear(); 
+    char msg[16] = "   Music Mode";
+    lcd_write_first(msg); 
+    // send_command(0x80); // first line 
+    // uart_write_bytes(UART_NUM, msg, strlen(msg));
+    vTaskDelay(pdMS_TO_TICKS(2000)); // show message for 2 seconds 
+
+    play_melody(melodyLength, melody, noteDurations);
+    vTaskDelay(1000 / portTICK_PERIOD_MS); // wait before next cycle
+}
+
 void check_answer(int button_index) {
     if(answer_choices[button_index] == correct_answer) {
         send_command(0x01); // clear screen 
         vTaskDelay(pdMS_TO_TICKS(100));
-        send_command(0x80); 
-        char msg[] = "Correct!"; 
-        uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+        // send_command(0x80); 
+        char msg[16] = "Correct!"; 
+        lcd_write_first(msg); 
+        // uart_write_bytes(UART_NUM, msg, strlen(msg)); 
         vTaskDelay(pdMS_TO_TICKS(100)); // small delay
     } else {
         send_command(0x01); // clear screen 
         vTaskDelay(pdMS_TO_TICKS(100));
-        send_command(0x80); 
-        char msg[] = "Wrong :("; 
-        uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+        char msg[16] = "Wrong :("; 
+        lcd_write_first(msg); 
         vTaskDelay(pdMS_TO_TICKS(100)); // small delay
     }
     vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
@@ -158,15 +398,10 @@ void check_answer(int button_index) {
 
     if (equation_count == 3) {
         equation_count = 0; // reset for next cycle 
-        vTaskDelay(pdMS_TO_TICKS(100)); // small delay
-        send_command(0x01); // clear screen 
-        send_command(0x80); // first line 
-        char msg[] = "music mode";
-        uart_write_bytes(UART_NUM, msg, strlen(msg)); 
-        vTaskDelay(pdMS_TO_TICKS(2000)); // show message for 2 seconds 
+        music_mode(); // go into music mode 
     }
-    
 
+    // generate new question 
     generate_random_equation(); 
     generate_answer_choices(); 
 }
@@ -195,201 +430,213 @@ void button_task(void *pvParameter) {
 }
 
 
-// void app_main(void) {
-//     init_lcd(); 
-//     init_button(); 
+// esp_err_t read_distance() { // read distance from the sensor 
+//     while (1) {
+//         i2c_write_byte(VL53L0X_REG_SYSRANGE_START, 0x01);
+//         vTaskDelay(50 / portTICK_PERIOD_MS);
 
-//     srand(time(NULL)); // seed random number generator
-//     generate_random_equation();
-//     generate_answer_choices(); 
+//         // the the result into variable 'distance'  
+//         distance_err = i2c_read_word(VL53L0X_REG_RESULT_RANGE, &distance);
 
-//     xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
+//         if (distance_err == ESP_OK) {
+//             lcd_clear(); 
+//             if (distance > 20 && distance < 500) {
+//                 char msg[16];
+//                 sprintf(msg, "dist: %d", distance); 
+//                 lcd_write_second(msg); 
+//             } else {
+//                 send_command(0xC0); // first line 
+//                 char msg[] = "out of bounds"; 
+//                 // lcd_write_second(msg); 
+//                 uart_write_bytes(UART_NUM, msg, strlen(msg));
+//             }    
+//         } else { // issue with being able to read from the sensor properly 
+//             char msg[16]; 
+//             sprintf(msg, "Error: %s", esp_err_to_name(distance_err)); // read the error message
+//             // lcd_write_second(msg); 
+//         }
+
+//         vTaskDelay(500 / portTICK_PERIOD_MS );
+//     }
 // }
 
 
-
-void test_distance_sensor() {
-    // Define I2C port and pins (adjust as needed)
-    int8_t port = 0;  // I2C bus number
-    int8_t scl = 7;   // Clock pin
-    int8_t sda = 6;   // Data pin
-    int8_t xshut = 0; // XSHUT pin (set to -1 if not used)
-    uint8_t address = 0x29; // Default VL53L0X address
-    uint8_t io_2v8 = 0; // Set to 1 if using 2.8V logic
-
-    // Initialize the VL53L0X sensor
-    send_command(0x80); // first line 
-    char message2[] = "initializing...";
-    uart_write_bytes(UART_NUM, message2, strlen(message2)); 
-    vl53l0x_t *sensor = vl53l0x_config(port, scl, sda, xshut, address, io_2v8);
-    if (!sensor) {
-        send_command(0x80); // first line 
-        char msg[] = "failed to detect";
-        uart_write_bytes(UART_NUM, msg, strlen(msg)); 
-        return;
-    } else {
-        send_command(0x80); // first line
-        send_command(0x01);  
-        char message1[] = "detected";
-        uart_write_bytes(UART_NUM, message1, strlen(message1)); 
-    }
-
-
-    send_command(0xC0); // second line
-    send_command(0x01);  
-    char message4[] = "init sesnor...";
-    uart_write_bytes(UART_NUM, message4, strlen(message4)); 
-    
-    const char *init_result = vl53l0x_init(sensor);
-    if (init_result) {
-        send_command(0x80); // first line 
-        char msg[16]; 
-        sprintf(msg, "fail: %s", init_result); 
-        uart_write_bytes(UART_NUM, msg, strlen(msg)); 
-        // printf("VL53L0X initialization failed: %s\n", init_result);
-        vl53l0x_end(sensor);
-        return;
-    }
-
-    // printf("VL53L0X initialized successfully.\n");
-    send_command(0x80); // first line 
-    char msg[] = "init success";
-    uart_write_bytes(UART_NUM, msg, strlen(msg)); 
-
-    // Start continuous measurement
-    vl53l0x_startContinuous(sensor, 0);
-    send_command(0x01);  
-
-    // Read and print 10 distance measurements
-    // for (int i = 0; i < 10; i++) {
-    while(1) {
-        uint16_t distance = vl53l0x_readRangeContinuousMillimeters(sensor);
-        if (vl53l0x_timeoutOccurred(sensor)) {
-            // printf("Timeout occurred while reading sensor.\n");
-            send_command(0x80); // first line 
-            char msg[] = "timeout occurred";
-            uart_write_bytes(UART_NUM, msg, strlen(msg)); 
-            vTaskDelay(pdMS_TO_TICKS(50)); 
-        } else {
-            send_command(0x80); // first line 
-            char msg[16];
-            sprintf(msg, "%d mm", distance);
-            uart_write_bytes(UART_NUM, msg, strlen(msg)); 
-            // printf("Distance: %d mm\n", distance);
-            vTaskDelay(pdMS_TO_TICKS(50)); 
-        }
-        usleep(500000); // Wait 500ms between readings
-    }
-
-    // Stop continuous measurement
-    vl53l0x_stopContinuous(sensor);
-    vl53l0x_end(sensor);
-}
-
-
-#include <stdio.h>
-#include "driver/i2c.h"
-#include "esp_log.h"
-
-#define I2C_MASTER_NUM I2C_NUM_0
-#define I2C_MASTER_SDA_IO 6
-#define I2C_MASTER_SCL_IO 7
-#define I2C_MASTER_FREQ_HZ 100000
-#define VL53L0X_ADDR 0x29
-
-// registers needed to read distance 
-#define VL53L0X_REG_SYSRANGE_START 0x00
-#define VL53L0X_REG_RESULT_RANGE_STATUS 0x14
-#define VL53L0X_REG_RESULT_RANGE 0x1E
-
-// i2c helper functions
-esp_err_t i2c_write_byte(uint8_t reg, uint8_t data) {
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (VL53L0X_ADDR << 1) | I2C_MASTER_WRITE, true);
-    i2c_master_write_byte(cmd, reg, true);
-    i2c_master_write_byte(cmd, data, true);
-    i2c_master_stop(cmd);
-    esp_err_t err = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_PERIOD_MS);
-    i2c_cmd_link_delete(cmd);
-    return err;
-}
-
-esp_err_t i2c_read_byte(uint8_t reg, uint8_t *data) {
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (VL53L0X_ADDR << 1) | I2C_MASTER_WRITE, true);
-    i2c_master_write_byte(cmd, reg, true);
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (VL53L0X_ADDR << 1) | I2C_MASTER_READ, true);
-    i2c_master_read_byte(cmd, data, I2C_MASTER_NACK);
-    i2c_master_stop(cmd);
-    esp_err_t err = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_PERIOD_MS);
-    i2c_cmd_link_delete(cmd);
-    return err;
-}
-
-esp_err_t i2c_read_word(uint8_t reg, uint16_t *data) {
-    uint8_t high, low;
-    esp_err_t err = i2c_read_byte(reg, &high);
-    if (err != ESP_OK) return err;
-    err = i2c_read_byte(reg + 1, &low);
-    if (err != ESP_OK) return err;
-    *data = (high << 8) | low;
-    return ESP_OK;
-}
-
-
-
-void test_distance_sensor2() {
-    i2c_config_t i2c_config = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = I2C_MASTER_SDA_IO,
-        .scl_io_num = I2C_MASTER_SCL_IO,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = I2C_MASTER_FREQ_HZ,
-    };
-    ESP_ERROR_CHECK(i2c_param_config(I2C_MASTER_NUM, &i2c_config));
-    ESP_ERROR_CHECK(i2c_driver_install(I2C_MASTER_NUM, I2C_MODE_MASTER, 0, 0, 0));
-
-    send_command(0x80); // first line 
-    char msg[] = "initializied";
-    uart_write_bytes(UART_NUM, msg, strlen(msg)); 
-
+esp_err_t read_distance() { // read distance from the sensor 
     while (1) {
         i2c_write_byte(VL53L0X_REG_SYSRANGE_START, 0x01);
         vTaskDelay(50 / portTICK_PERIOD_MS);
 
-        // read distance result 
-        uint16_t distance; 
-        esp_err_t err = i2c_read_word(VL53L0X_REG_RESULT_RANGE, &distance);
+        // the the result into variable 'distance'  
+        distance_err = i2c_read_word(VL53L0X_REG_RESULT_RANGE, &distance);
 
-        if (err == ESP_OK) {
-            send_command(0x01); // clear display
-            if (distance != 20 && distance < 300) {
-                send_command(0xC0); // second line 
+        if (distance_err == ESP_OK) {
+            lcd_clear(); 
+            if (!(distance > 20 && distance < 500)){
+                send_command(0xC0); // first line 
+                char msg[] = "out of bounds"; 
+                // lcd_write_second(msg); 
+                uart_write_bytes(UART_NUM, msg, strlen(msg));
+            } else if (distance > 200) {
                 char msg[16];
                 sprintf(msg, "dist: %d", distance); 
-                uart_write_bytes(UART_NUM, msg, strlen(msg));
-            } else {
-                char msg[] = "dist: "; 
-                uart_write_bytes(UART_NUM, msg, strlen(msg));
+                lcd_write_first(msg); 
+                char msg2[16] = "melody 1"; 
+                lcd_write_second(msg2); 
+                play_melody(melodyLength, melody, noteDurations);
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            } else  { 
+                char msg[16];
+                sprintf(msg, "dist: %d", distance); 
+                lcd_write_first(msg); 
+                char msg2[16] = "melody 2"; 
+                lcd_write_second(msg2); 
+
+                play_melody(errorLength, errorMelody, errorDurations); 
+                vTaskDelay(pdMS_TO_TICKS(1000));
             }
-            
-             
-        } else {
-            send_command(0xC0); // second line 
-            char msg[] = "error reading dist";
-            uart_write_bytes(UART_NUM, msg, strlen(msg)); 
+
+        } else { // issue with being able to read from the sensor properly 
+            char msg[16]; 
+            sprintf(msg, "Error: %s", esp_err_to_name(distance_err)); // read the error message
+            // lcd_write_second(msg); 
         }
 
         vTaskDelay(500 / portTICK_PERIOD_MS );
     }
 }
-
+void speaker_task(void *pvParameter) {
+    while (1) {
+        play_melody(melodyLength, melody, noteDurations); 
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
 
 void app_main(void) {
-    init_lcd();    
-    // test_distance_sensor2();
+    // initialize everything 
+    init_lcd(); 
+    init_button(); 
+    init_distance_sensor(); 
+    init_speaker();
+
+    // play_melody(); 
+
+    // srand(time(NULL)); // seed random number generator
+    // generate_random_equation();
+    // generate_answer_choices(); 
+
+    // xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
+    read_distance(); // continuously read distance from the distance sensor 
+    // xTaskCreate(speaker_task, "speaker_task", 2048, NULL, 5, NULL);
+
+    servo_init();
+
+    // while (1) {
+        // start at 180 
+        
+        // printf("Rotating to 180°\n");
+        // servo_set_angle(180);
+        // for (int i = 0; i < 20; i++) {
+        //     char msg[16];
+        //     sprintf(msg, "i: %d", i);  
+        //     lcd_write_first(msg);
+        //     servo_set_angle(i * 9); 
+        //     vTaskDelay(pdMS_TO_TICKS(500));
+
+        // }
+        
+        // servo_init();
+        // char msg[16] = "degree 0"; 
+        // lcd_clear(); 
+        // lcd_write_first(msg); 
+        // servo_set_angle(0); 
+        // vTaskDelay(pdMS_TO_TICKS(2000));
+        // init_speaker(); 
+        // char msg1[16] = "playing melody"; 
+        // lcd_clear(); 
+        // lcd_write_first(msg1); 
+        // play_melody(); 
+        // vTaskDelay(pdMS_TO_TICKS(2000));
+        // servo_init();
+        // char msg2 [16] = "degree 180"; 
+        // lcd_clear(); 
+        // lcd_write_first(msg2); 
+        // servo_set_angle(180); 
+        // vTaskDelay(pdMS_TO_TICKS(2000));
+
+        // servo_set_angle(180);
+
+        // // printf("Rotating to 0°\n");
+        // char msg[16] = "rotating"; 
+        // // lcd_write_first(msg);
+        // servo_set_angle(0);
+        // vTaskDelay(pdMS_TO_TICKS(2000));
+
+        // printf("Rotating to 90°\n");
+        // servo_set_angle(90);
+        // vTaskDelay(pdMS_TO_TICKS(2000));         
+    // } 
 }
+
+
+
+
+
+// void app_main() {
+//     // i2c_master_init();
+//     i2c_config_t i2c_config = {
+//         .mode = I2C_MODE_MASTER,
+//         .sda_io_num = I2C_MASTER_SDA_IO,
+//         .scl_io_num = I2C_MASTER_SCL_IO,
+//         .sda_pullup_en = GPIO_PULLUP_ENABLE,
+//         .scl_pullup_en = GPIO_PULLUP_ENABLE,
+//         .master.clk_speed = I2C_MASTER_FREQ_HZ,
+//     };
+//     ESP_ERROR_CHECK(i2c_param_config(I2C_MASTER_NUM, &i2c_config));
+//     ESP_ERROR_CHECK(i2c_driver_install(I2C_MASTER_NUM, I2C_MODE_MASTER, 0, 0, 0));
+
+//     pwm_init();
+
+//     while (1) {
+//         // uint16_t distance;
+//         // if (read_distance(&distance) == ESP_OK) {
+//         //     ESP_LOGI(TAG, "Distance: %d mm", distance);
+//         // } else {
+//         //     ESP_LOGE(TAG, "Failed to read distance");
+//         // }
+
+//         play_melody();
+//         vTaskDelay(1000 / portTICK_PERIOD_MS); // Wait before next cycle
+//     }
+// }
+
+
+
+
+// // speaker is output if pin 10 (7 from the bottom on the right )
+
+// the following is for the servo 
+
+
+// void app_main(void) {
+//     servo_init();
+
+//     while (1) {
+//         printf("Rotating to 0°\n");
+//         servo_set_angle(0);
+//         vTaskDelay(pdMS_TO_TICKS(2000));
+
+//         printf("Rotating to 90°\n");
+//         servo_set_angle(90);
+//         vTaskDelay(pdMS_TO_TICKS(2000));
+
+//         printf("Rotating to 180°\n");
+//         servo_set_angle(180);
+//         vTaskDelay(pdMS_TO_TICKS(2000));
+//     }
+// }
+
+
+
+
+// over  or under certain range are two diff choices 
+// 

@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "melodyMath",
-    "project_version":    "a38ba49-dirty",
+    "project_version":    "f9ef1e7-dirty",
     "project_path":       "/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath",
     "idf_path":           "/Users/samanthamau/esp/esp-idf",
     "build_dir":          "/Users/samanthamau/Desktop/school/year3/spring/ece3011/melodyMath/build",
