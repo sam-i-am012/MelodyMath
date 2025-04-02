@@ -48,7 +48,7 @@ int musicMode = 0; // flag - 0 if not in music mode, 1 if we are in music mode
 bool music_answer_selected = 0; // flag 
 int music_user_answer = -1; // the result the answer chose 
 bool music_level_passed = 0; // flag 
-int music_level = 4; // start with one tune 
+int music_level = 1; // start with one tune 
 
 
 int correct_answer = 0; 
@@ -345,6 +345,7 @@ void math_game(void) {
 // use for sound effects? 
 void play_melody(int melodyLength, int* melody, int* noteDuration) {
     for (int i = 0; i < melodyLength; i++) {
+        init_speaker();
         int frequency = melody[i];
         int duration = noteDurations[i];
         // Set frequency and enable sound
@@ -363,6 +364,7 @@ void play_melody(int melodyLength, int* melody, int* noteDuration) {
 }
 
 void play_tune(int frequency, int duration) { // only plays a singular tune 
+    init_speaker();
     // for (int i = 0; i < melodyLength; i++) {
         // int frequency = melody[i];
         // int duration = noteDurations[i];
@@ -388,11 +390,12 @@ void play_game_melody(int melodyLength) {
     // extend current melody 
     for (int i = 0; i < melodyLength; i++) {
         // if (i >= melodyLength) {
-            melody[i] = (rand() % 1000) + 200; // random frequency between 200Hz - 1200Hz
+            melody[i] = (rand() % 800) + 200; // random frequency between 200Hz - 1000Hz
             noteDurations[i] = (rand() % 400) + 100; // random duration between 100ms - 500ms 
     }
 
     for (int i = 0; i < melodyLength; i++) {
+        init_speaker();
         int frequency = melody[i];
         int duration = noteDurations[i];
 
@@ -820,7 +823,7 @@ void app_main(void) {
     init_speaker();
     servo_init();
     srand(time(NULL)); // seed random number generator
-    printf("hello>");
+    // servo_set_angle(0); 
 
 
     // read_distance(); 
@@ -832,7 +835,36 @@ void app_main(void) {
     // math_game(); 
 
     xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
-    xTaskCreate(distance_sensor_task, "distance_sensor_task", 2048, NULL, 5, NULL); 
+    xTaskCreate(distance_sensor_task, "distance_sensor_task", 2048, NULL, 5, NULL);   
+
+    // while (1) {
+    //     // servo_set_angle(0); 
+    //     // servo_init();
+    //     //  char msg[16] = "degree 0"; 
+    //     //  lcd_clear(); 
+    //     //  lcd_write_first(msg); 
+    //     //  servo_set_angle(0); 
+    //     //  vTaskDelay(pdMS_TO_TICKS(2000));
+
+    //      init_speaker(); 
+    //      char msg1[16] = "playing melody"; 
+    //      lcd_clear(); 
+    //      lcd_write_first(msg1); 
+    //     //  play_melody(errorLength, errorMelody, errorDurations);
+    //     int test[] = {200};  
+    //      play_melody(1, test, noteDurations); 
+
+    //      vTaskDelay(pdMS_TO_TICKS(2000));
+    //     //  servo_init();
+    //     //  char msg2 [16] = "degree 180"; 
+    //     //  lcd_clear(); 
+    //     //  lcd_write_first(msg2); 
+    //     //  servo_set_angle(180); 
+    //      vTaskDelay(pdMS_TO_TICKS(2000));
+ 
+    // }
+
+    
 
 
     // play_melody(melodyLength, melody, noteDurations);
