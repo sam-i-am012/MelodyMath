@@ -1,7 +1,0 @@
-.DS_Store
-.devcontainer/
-.vscode/
-build_log.txt
-sdkconfig
-sdkconfig.*
-build/

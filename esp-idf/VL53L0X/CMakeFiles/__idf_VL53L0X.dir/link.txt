@@ -1,2 +1,0 @@
-/Users/samanthamau/.espressif/tools/riscv32-esp-elf/esp-14.2.0_20241119/riscv32-esp-elf/bin/riscv32-esp-elf-ar qc libVL53L0X.a CMakeFiles/__idf_VL53L0X.dir/vl53l0x.c.obj
-/Users/samanthamau/.espressif/tools/riscv32-esp-elf/esp-14.2.0_20241119/riscv32-esp-elf/bin/riscv32-esp-elf-ranlib libVL53L0X.a

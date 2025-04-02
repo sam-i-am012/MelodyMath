@@ -1,3 +1,0 @@
-file(REMOVE_RECURSE
-  "libVL53L0X.a"
-)
