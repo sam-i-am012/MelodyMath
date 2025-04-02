@@ -36,12 +36,26 @@
 int melody[] = { 330, 349, 392, 294, 330, 262, 330, 440, 330 }; // in Hz
 int noteDurations[] = { 300, 400, 500, 300, 400, 500, 300, 600, 800 }; // in ms 
 
-int errorMelody[] = { 500, 300, 100 };  // Descending error sound
-int errorDurations[] = { 200, 200, 200 };
+int game_over_melody[] = { 500, 300, 100};  // Descending error sound
+int game_over_durations[] = { 200, 200, 400,};
 
 int melodyLength = sizeof(melody) / sizeof(melody[0]);
 
-int errorLength = sizeof(errorMelody) / sizeof(errorMelody[0]);
+int wrong_melody[] = { 262, 330, 262 }; // A3
+int wrong_duration[] = { 200, 200, 300 }; // ms
+
+int correct_melody[] = { 784, 988 }; // C5
+int correct_duration[] = {200, 300}; // ms
+
+int next_level_melody[] = { 262, 330, 392, 523 }; // C4, E4, G4, C5
+int next_levle_duration[] = { 200, 200, 300, 500 }; // ms
+
+
+// int game_over_melody[] =  { 523, 415, 349, 300 }; // G4, F4, D4
+// int game_over_durations[] = { 300, 300, 400, 800 }; // in ms
+
+
+// int errorLength = sizeof(errorMelody) / sizeof(errorMelody[0]);
 int pauseDuration = 100; // for the pause between the notes 
 
 int musicMode = 0; // flag - 0 if not in music mode, 1 if we are in music mode 
@@ -446,7 +460,7 @@ void print_music_answer_choices(void) {
     static char upper[16] = "a  b   c   d   e";
     lcd_write_first(upper);
 
-    static char lower[16] = "               f";
+    static char lower[20] = "               f";
     lcd_write_second(lower);
 }
 
@@ -514,6 +528,7 @@ void wrong_note(int wrong_choice) {
 
     char msg[16] = "    Wrong :(";
     lcd_write_first(msg);  
+    play_melody(3, wrong_melody, wrong_duration);
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     // reset variables 
@@ -531,6 +546,10 @@ void game_over(void) {
     char lower[16] = "   Try again!";
     lcd_write_first(upper); 
     lcd_write_second(lower); 
+
+    play_melody(3, game_over_melody, game_over_durations);
+    //     vTaskDelay(pdMS_TO_TICKS(500)); // small delay
+
     vTaskDelay(pdMS_TO_TICKS(3000)); 
 
     // if (musicMode) { // if lost in music mode, fully reset equation count
@@ -566,10 +585,13 @@ void next_round(void) {
     lcd_clear(); 
     game_round++; 
     // char msg[16] = "  Next round !";
+    
+
     char msg[40]; 
     sprintf(msg, "    Round %d!", game_round); 
     lcd_write_first(msg);  
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    play_melody(4, next_level_melody, next_levle_duration);
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
     music_level++; 
     music_level_passed = 1; 
@@ -636,6 +658,9 @@ void check_answer(int button_index) {
         // send_command(0x80); 
         char msg[16] = "   Correct!"; 
         lcd_write_first(msg); 
+
+        play_melody(2, correct_melody, correct_duration);
+
         // uart_write_bytes(UART_NUM, msg, strlen(msg)); 
         vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
     } else {
@@ -643,6 +668,7 @@ void check_answer(int button_index) {
         vTaskDelay(pdMS_TO_TICKS(100));
         char msg[16] = "    Wrong :("; 
         lcd_write_first(msg); 
+        play_melody(3, wrong_melody, wrong_duration);
         vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
         
         game_over(); 
@@ -881,6 +907,119 @@ void app_main(void) {
     // lcd_write_first(msg); 
         // music_mode(); 
     math_game(); 
+
+   
+//     while (1) {
+
+//         int correctMelody[] = { 784, 988 }; // G5, B5
+//         int correctDurations[] = { 200, 300 }; // ms
+
+//         int correctMelody2[] = { 523, 659, 784 }; // C5, E5, G5
+//         int correctDurations2[] = { 150, 200, 250 }; // ms
+
+//         int correctMelody3[] = { 440, 523, 659, 784 }; // A4, C5, E5, G5
+//         int correctDurations3[] = { 100, 100, 100, 200 }; // ms
+
+//         int incorrectMelody[] = { 196, 196 }; // G3, G3
+//         int incorrectDurations[] = { 200, 200 }; // ms
+
+//         int incorrectMelody2[] = { 440, 392, 349 }; // A4, G4, F4
+//         int incorrectDurations2[] = { 200, 200, 300 }; // ms
+
+//         int incorrectMelody3[] = { 262, 330, 262 }; // C4, E4, C4
+//         int incorrectDurations3[] = { 200, 200, 300 }; // ms
+
+//         int incorrectMelody4[] = { 330, 294, 262, 196 }; // E4, D4, C4, G3
+//         int incorrectDurations4[] = { 150, 150, 250, 400 }; // ms
+
+//         int nextLevelMelody[] = { 523, 659, 784, 1047 }; // C5, E5, G5, C6
+//         int nextLevelDurations[] = { 150, 150, 200, 300 }; // ms
+
+//         int nextLevelMelody2[] = { 440, 523, 587, 659, 784 }; // A4, C5, D5, E5, G5
+//         int nextLevelDurations2[] = { 200, 200, 200, 250, 400 }; // ms
+
+
+        
+
+
+//         // lcd_clear(); 
+//         // char msg[16] = "wrong";
+//         // lcd_write_first(msg); 
+//         // play_melody(2, wrong_melody, wrong_duration);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+//         // lcd_clear(); 
+//         // char msg2[16] = "wrong 1";
+//         // lcd_write_first(msg2); 
+//         // play_melody(3, incorrectMelody, incorrectDurations);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+//         // lcd_clear(); 
+//         // char msg3[16] = "wrong 2";
+//         // lcd_write_first(msg3); 
+//         // play_melody(2, incorrectMelody2, incorrectDurations2);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+//         // lcd_clear(); 
+//         // // char msg4[16] = "wrong 3";
+//         // // lcd_write_first(msg4); 
+//         // play_melody(3, incorrectMelody3, incorrectDurations3);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+//         // // lcd_clear(); 
+//         // // // char msg3[16] = "wrong 2";
+//         // // // lcd_write_first(msg3); 
+//         // play_melody(2, correctMelody, correctDurations);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+//         // play_melody(3, correctMelody2, correctDurations2);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+//         // play_melody(4, correctMelody3, correctDurations3);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+//         // play_melody(4, next_level_melody, next_levle_duration);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+// // this one  corectMlody and incorredMelocy3 
+//         // play_melody(5, nextLevelMelody2, nextLevelDurations2);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+
+
+//         // lcd_clear(); 
+//         // char msg5[16] = "wrong 4";
+//         // lcd_write_first(msg5); 
+//         // play_melody(4, incorrectMelody4, incorrectDurations4);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+
+       
+//         // lcd_clear(); 
+//         // char msg2[16] = "correct"; 
+//         // lcd_write_first(msg2); 
+//         // play_melody(2, correct_melody, correct_duration);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+        
+//         // lcd_clear(); 
+//         // char msg6[16] = "game over"; 
+//         // lcd_write_first(msg6); 
+//         // play_melody(3, game_over_melody, game_over_durations);
+//         // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+       
+
+//         // lcd_clear(); 
+//         // char msg4[16] = "next level "; 
+//         // lcd_write_first(msg4); 
+
+//             // play_melody(4, next_level_melody, next_levle_duration);
+//             // vTaskDelay(pdMS_TO_TICKS(1000)); // small delay
+
+        
+//     }
+
+
+
 
     xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
     xTaskCreate(distance_sensor_task, "distance_sensor_task", 2048, NULL, 5, NULL);   
