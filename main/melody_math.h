@@ -8,3 +8,4 @@ void print_music_answer_choices(void);
 void correct_note(void); 
 void wrong_note(int wrong_choice);
 void next_round(void);
+void game_over(void);

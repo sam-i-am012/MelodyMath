@@ -53,7 +53,7 @@ int music_level = 1; // start with one tune
 
 int correct_answer = 0; 
 int answer_choices[4]; // four answer choices 
-int equation_count = 0; // to track how many equations have been played 
+int math_correct_count = 0; 
 
 int saved_melody[100]; // assuming we won't get more than 100 rounds 
 int saved_note_duration[100]; 
@@ -62,6 +62,7 @@ int music_answer_guessed[100];
 int music_guessed_count = 0; 
 int music_answer = 0; 
 int music_correct_count = 0; // counts how many notes are correct so far 
+int game_round = 1; // start at round 1 
 
 
 #define UART_NUM UART_NUM_1  
@@ -300,7 +301,11 @@ void generate_answer_choices(void) {
 }
 
 void generate_random_equation(void) {
-    equation_count++; 
+    // char msg[16] = "new equation"; 
+    // lcd_write_first(msg);
+    // equation_count++; 
+    // vTaskDelay(pdMS_TO_TICKS(500)); // small delay
+    // lcd_clear(); 
 
     int num1 = 0; 
     int num2 = 0; 
@@ -390,7 +395,7 @@ void play_game_melody(int melodyLength) {
     // extend current melody 
     for (int i = 0; i < melodyLength; i++) {
         // if (i >= melodyLength) {
-            melody[i] = (rand() % 800) + 200; // random frequency between 200Hz - 1000Hz
+            melody[i] = (rand() % 500) + 300; // random frequency between 200Hz - 1000Hz
             noteDurations[i] = (rand() % 400) + 100; // random duration between 100ms - 500ms 
     }
 
@@ -516,14 +521,53 @@ void wrong_note(int wrong_choice) {
     music_mode_reset();
     
     // math_game();
-    music_mode();
+    // music_mode();
+    game_over(); 
+
+}
+
+void game_over(void) {
+    char upper[16] = "    Game Over"; 
+    char lower[16] = "   Try again!";
+    lcd_write_first(upper); 
+    lcd_write_second(lower); 
+    vTaskDelay(pdMS_TO_TICKS(3000)); 
+
+    // if (musicMode) { // if lost in music mode, fully reset equation count
+    //     equation_count = 0;  
+    // } else { // otherwise do -1 because for some reason it generates two equations and messes up count 
+    //     equation_count = -1; 
+    // }
+
+    musicMode = 0; // flag - 0 if not in music mode, 1 if we are in music mode 
+    music_answer_selected = 0; // flag 
+    music_user_answer = -1; // the result the answer chose 
+    music_level_passed = 0; // flag 
+    music_level = 1; // start with one tune 
+
+
+    correct_answer = 0; 
+    math_correct_count = 0; // to track how many equations have been played 
+
+    music_guessed_count = 0; 
+    music_answer = 0; 
+    music_correct_count = 0; // counts how many notes are correct so far 
+
+    game_round = 1; 
+
+    lcd_clear(); 
+    vTaskDelay(pdMS_TO_TICKS(500)); 
+    math_game(); 
 
 }
 
 void next_round(void) {
     // play_melody(music_level, saved_melody, saved_note_duration); 
     lcd_clear(); 
-    char msg[16] = "  Next round !";
+    game_round++; 
+    // char msg[16] = "  Next round !";
+    char msg[40]; 
+    sprintf(msg, "    Round %d!", game_round); 
     lcd_write_first(msg);  
     vTaskDelay(pdMS_TO_TICKS(2000));
 
@@ -531,8 +575,8 @@ void next_round(void) {
     music_level_passed = 1; 
 
     music_mode_reset();
-    // math_game();
-    music_mode();
+    math_game();
+    // music_mode();
 
 }
 
@@ -586,25 +630,29 @@ void music_mode(void) {
 
 void check_answer(int button_index) {
     if(answer_choices[button_index] == correct_answer) {
+        math_correct_count++; 
         send_command(0x01); // clear screen 
         vTaskDelay(pdMS_TO_TICKS(100));
         // send_command(0x80); 
-        char msg[16] = "Correct!"; 
+        char msg[16] = "   Correct!"; 
         lcd_write_first(msg); 
         // uart_write_bytes(UART_NUM, msg, strlen(msg)); 
-        vTaskDelay(pdMS_TO_TICKS(100)); // small delay
+        vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
     } else {
         send_command(0x01); // clear screen 
         vTaskDelay(pdMS_TO_TICKS(100));
-        char msg[16] = "Wrong :("; 
+        char msg[16] = "    Wrong :("; 
         lcd_write_first(msg); 
-        vTaskDelay(pdMS_TO_TICKS(100)); // small delay
+        vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
+        
+        game_over(); 
     }
-    vTaskDelay(pdMS_TO_TICKS(1000)); // delay before next question is shown 
 
 
-    if (equation_count == 3) {
-        equation_count = 0; // reset for next cycle 
+    if (math_correct_count == 3) {
+        math_correct_count = 0; // reset for next cycle 
+        vTaskDelay(pdMS_TO_TICKS(500));
+        lcd_clear(); 
         music_mode(); // go into music mode 
     }
 
@@ -831,8 +879,8 @@ void app_main(void) {
     // char msg[16];
     // sprintf(msg, "mode: %d", musicMode); 
     // lcd_write_first(msg); 
-        music_mode(); 
-    // math_game(); 
+        // music_mode(); 
+    math_game(); 
 
     xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL); // run button as a separate task
     xTaskCreate(distance_sensor_task, "distance_sensor_task", 2048, NULL, 5, NULL);   
